@@ -84,3 +84,4 @@ resource "aws_iam_role_policy_attachment" "codedeploy_managed" {
 
   depends_on = [aws_iam_role.codedeploy_role]
 }
+

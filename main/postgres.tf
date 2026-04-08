@@ -34,7 +34,7 @@ resource "random_password" "db_password" {
 }
 
 resource "aws_secretsmanager_secret" "db_password" {
-  name        = "prod/database/password"
+  name        = "prod/database/password2"
   description = "RDS PostgreSQL master password"
   tags = {
     Environment = "prod"
