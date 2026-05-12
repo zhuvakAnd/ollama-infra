@@ -29,12 +29,13 @@ resource "aws_db_instance" "postgres" {
 }
 
 resource "random_password" "db_password" {
-  length  = 16
-  special = true
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
 resource "aws_secretsmanager_secret" "db_password" {
-  name        = "prod/database/password2"
+  name        = "prod/database/password6"
   description = "RDS PostgreSQL master password"
   tags = {
     Environment = "prod"
@@ -49,6 +50,25 @@ resource "aws_secretsmanager_secret_version" "db_password_value" {
 
   depends_on = [
     aws_secretsmanager_secret.db_password
+  ]
+}
+
+resource "aws_secretsmanager_secret" "open_webui_database_url" {
+  name        = "prod/open-webui/database-url1"
+  description = "Open WebUI DATABASE_URL (plain string for ECS secret injection)"
+
+  tags = {
+    Environment = "prod"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "open_webui_database_url" {
+  secret_id     = aws_secretsmanager_secret.open_webui_database_url.id
+  secret_string = "postgresql://${urlencode(var.db_username)}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:5432/postgres"
+
+  depends_on = [
+    aws_secretsmanager_secret.open_webui_database_url,
+    aws_db_instance.postgres
   ]
 }
 

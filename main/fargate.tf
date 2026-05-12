@@ -1,3 +1,26 @@
+resource "random_password" "webui_secret_key" {
+  length  = 64
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "webui" {
+  name        = "prod/open-webui/webui-secret-key1"
+  description = "Open WebUI WEBUI_SECRET_KEY (JSON key: key)"
+
+  tags = {
+    Environment = "prod"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "webui" {
+  secret_id = aws_secretsmanager_secret.webui.id
+  secret_string = jsonencode({
+    key = random_password.webui_secret_key.result
+  })
+
+  depends_on = [aws_secretsmanager_secret.webui]
+}
+
 resource "aws_ecs_cluster" "ollama_cluster" {
   name = "ollama-fargate-cluster"
 
@@ -16,7 +39,7 @@ resource "aws_ecs_task_definition" "ollama_webui" {
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
 
-  cpu    = "2048"
+  cpu    = "4096"
   memory = "8192"
 
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
@@ -27,7 +50,7 @@ resource "aws_ecs_task_definition" "ollama_webui" {
     # --- Ollama container ---
     {
       name  = "ollama"
-      image = "058264468006.dkr.ecr.us-east-1.amazonaws.com/ollama-app:latest"
+      image = "058264468006.dkr.ecr.us-east-1.amazonaws.com/ollama-app:v2"
 
       essential = true
 
@@ -47,13 +70,13 @@ resource "aws_ecs_task_definition" "ollama_webui" {
         }
       }
 
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:11434 || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 60
-      }
+      # healthCheck = {
+      #   command     = ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      #   interval    = 30
+      #   timeout     = 5
+      #   retries     = 3
+      #   startPeriod = 60
+      # }
     },
 
     # --- Open WebUI container ---
@@ -72,23 +95,19 @@ resource "aws_ecs_task_definition" "ollama_webui" {
 
       environment = [
         {
-          name  = "DB_HOST"
-          value = aws_db_instance.postgres.address
-        },
-        {
-          name  = "DB_PORT"
-          value = "5432"
-        },
-        {
-          name  = "DB_NAME"
-          value = var.db_username
+          name  = "OLLAMA_BASE_URL"
+          value = "http://127.0.0.1:11434"
         }
       ]
 
       secrets = [
         {
-          name      = "DB_PASSWORD"
-          valueFrom = "arn:aws:secretsmanager:us-east-1:058264468006:secret:prod/database/password2-IluZKM"
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.open_webui_database_url.arn
+        },
+        {
+          name      = "WEBUI_SECRET_KEY"
+          valueFrom = "${aws_secretsmanager_secret.webui.arn}:key::"
         }
       ]
 
@@ -101,20 +120,20 @@ resource "aws_ecs_task_definition" "ollama_webui" {
         }
       }
 
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 30
-      }
+      # healthCheck = {
+      #   command     = ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      #   interval    = 30
+      #   timeout     = 5
+      #   retries     = 3
+      #   startPeriod = 60
+      # }
 
-      dependsOn = [
-        {
-          containerName = "ollama"
-          condition     = "START"
-        }
-      ]
+      # dependsOn = [
+      #   {
+      #     containerName = "ollama"
+      #     condition     = "HEALTHY"
+      #   }
+      # ]
     }
 
   ])
@@ -154,7 +173,10 @@ resource "aws_iam_policy" "secrets_access" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = "arn:aws:secretsmanager:us-east-1:058264468006:secret:prod/database/password2*"
+        Resource = [
+          "${aws_secretsmanager_secret.open_webui_database_url.arn}*",
+          "${aws_secretsmanager_secret.webui.arn}*"
+        ]
       }
     ]
   })
@@ -193,7 +215,10 @@ resource "aws_iam_policy" "app_policy" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = "arn:aws:secretsmanager:us-east-1:058264468006:secret:prod/database/password2*"
+        Resource = [
+          "${aws_secretsmanager_secret.open_webui_database_url.arn}*",
+          "${aws_secretsmanager_secret.webui.arn}*"
+        ]
       }
     ]
   })
