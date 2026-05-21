@@ -1,0 +1,47 @@
+version: 0.2
+
+env:
+  variables:
+    TF_VERSION: "1.9.8"
+
+phases:
+  install:
+    commands:
+      - |
+        if ! command -v terraform &> /dev/null; then
+          echo "Installing Terraform ${TF_VERSION}..."
+          wget -q https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip
+          unzip -q terraform_${TF_VERSION}_linux_amd64.zip
+          mv terraform /usr/local/bin/
+          rm terraform_${TF_VERSION}_linux_amd64.zip
+        fi
+      - terraform version
+
+  pre_build:
+    commands:
+      - echo "=== Terraform Format Check ==="
+      - terraform -chdir=${TF_WORKING_DIR} fmt -check -recursive
+      - echo "=== Terraform Init ==="
+      - |
+        terraform -chdir=${TF_WORKING_DIR} init \
+          -input=false \
+          -backend-config="bucket=${TF_STATE_BUCKET}" \
+          -backend-config="region=${TF_STATE_REGION}"
+      - echo "=== Terraform Validate ==="
+      - terraform -chdir=${TF_WORKING_DIR} validate
+
+  build:
+    commands:
+      - echo "=== Terraform Plan ==="
+      - terraform -chdir=${TF_WORKING_DIR} plan -out=tfplan -input=false
+      - echo "=== Export Plan as JSON (for reviewer) ==="
+      - terraform -chdir=${TF_WORKING_DIR} show -json tfplan > plan-output.json
+      - echo "Plan saved to ${TF_WORKING_DIR}/tfplan and plan-output.json"
+
+artifacts:
+  # Pass the binary plan + JSON summary to the next pipeline stage.
+  # The apply buildspec reads the plan from $CODEBUILD_SRC_DIR_plan_artifact/main/tfplan.
+  files:
+    - "main/tfplan"
+    - "plan-output.json"
+  discard-paths: no

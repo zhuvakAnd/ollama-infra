@@ -1,0 +1,32 @@
+version: 0.2
+
+env:
+  variables:
+    TF_VERSION: "1.9.8"
+
+phases:
+  install:
+    commands:
+      - |
+        if ! command -v terraform &> /dev/null; then
+          echo "Installing Terraform ${TF_VERSION}..."
+          wget -q https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip
+          unzip -q terraform_${TF_VERSION}_linux_amd64.zip
+          mv terraform /usr/local/bin/
+          rm terraform_${TF_VERSION}_linux_amd64.zip
+        fi
+      - terraform version
+
+  build:
+    commands:
+      - echo "=== Terraform Init ==="
+      - |
+        terraform -chdir=${TF_WORKING_DIR} init \
+          -input=false \
+          -backend-config="bucket=${TF_STATE_BUCKET}" \
+          -backend-config="region=${TF_STATE_REGION}"
+      - echo "=== Terraform Apply (saved plan) ==="
+      # $CODEBUILD_SRC_DIR_plan_artifact is the directory where CodePipeline
+      # extracts the plan_artifact produced by the Validate stage.
+      - terraform -chdir=${TF_WORKING_DIR} apply -input=false $CODEBUILD_SRC_DIR_plan_artifact/main/tfplan
+      - echo "=== Apply complete ==="
