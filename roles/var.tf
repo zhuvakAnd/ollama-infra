@@ -4,7 +4,7 @@ variable "github_repo" {
 }
 
 variable "approval_email" {
-  description = "Email address to receive manual approval notifications (leave empty to skip subscription)"
+  description = "Email address to receive manual approval notifications"
   type        = string
   default     = ""
 }

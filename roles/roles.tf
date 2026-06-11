@@ -162,6 +162,55 @@ resource "aws_iam_role_policy" "codepipeline_sns" {
   depends_on = [aws_iam_role.codepipeline_role]
 }
 
+resource "aws_iam_role_policy" "codepipeline_ecs_deploy" {
+  name = "CodePipelineECSDeployAccess"
+  role = aws_iam_role.codepipeline_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ECSTaskDefinition"
+        Effect = "Allow"
+        Action = [
+          "ecs:RegisterTaskDefinition",
+          "ecs:DescribeTaskDefinition",
+          "ecs:DescribeServices",
+          "ecs:UpdateService"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "PassRoleToECS"
+        Effect = "Allow"
+        Action = "iam:PassRole"
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+          }
+        }
+      },
+      {
+        Sid    = "CodeDeployActions"
+        Effect = "Allow"
+        Action = [
+          "codedeploy:CreateDeployment",
+          "codedeploy:GetDeployment",
+          "codedeploy:GetDeploymentConfig",
+          "codedeploy:GetApplication",
+          "codedeploy:GetApplicationRevision",
+          "codedeploy:RegisterApplicationRevision",
+          "codedeploy:ListDeploymentGroups"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  depends_on = [aws_iam_role.codepipeline_role]
+}
+
 resource "aws_iam_role" "codedeploy_role" {
   name = "CodeDeployServiceRole"
 
@@ -243,8 +292,8 @@ resource "aws_iam_role_policy" "codebuild_s3_state" {
           "s3:GetBucketVersioning"
         ]
         Resource = [
-          "arn:aws:s3:::terraform-state-058264468006-eu-north-1-an",
-          "arn:aws:s3:::terraform-state-058264468006-eu-north-1-an/*",
+          "arn:aws:s3:::tfstate-542776677488-eu-north-1-an",
+          "arn:aws:s3:::tfstate-542776677488-eu-north-1-an/*",
           "arn:aws:s3:::codepipeline-artifacts-${data.aws_caller_identity.current.account_id}",
           "arn:aws:s3:::codepipeline-artifacts-${data.aws_caller_identity.current.account_id}/*"
         ]

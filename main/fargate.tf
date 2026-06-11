@@ -50,7 +50,7 @@ resource "aws_ecs_task_definition" "ollama_webui" {
     # --- Ollama container ---
     {
       name  = "ollama"
-      image = "058264468006.dkr.ecr.us-east-1.amazonaws.com/ollama-app:v2"
+      image = "542776677488.dkr.ecr.us-east-1.amazonaws.com/ollama-app:v2"
 
       essential = true
 
@@ -256,6 +256,25 @@ resource "aws_lb_target_group" "webui_tg" {
   }
 }
 
+resource "aws_lb_target_group" "webui_tg_green" {
+  name        = "webui-tg-green"
+  port        = 8080
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.main.id
+
+  health_check {
+    path                = "/"
+    port                = "8080"
+    protocol            = "HTTP"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+}
+
 resource "aws_lb" "app_alb" {
   name               = "ollama-alb"
   load_balancer_type = "application"
@@ -282,6 +301,12 @@ resource "aws_ecs_service" "ollama_service" {
 
   launch_type = "FARGATE"
 
+  deployment_controller {
+    type = "CODE_DEPLOY"
+  }
+
+  health_check_grace_period_seconds = 60
+
   network_configuration {
     subnets          = [aws_subnet.private.id, aws_subnet.private1.id]
     security_groups  = [aws_security_group.app_sg.id]
@@ -294,10 +319,17 @@ resource "aws_ecs_service" "ollama_service" {
     container_port   = 8080
   }
 
-  deployment_minimum_healthy_percent = 50
-  deployment_maximum_percent         = 200
-
   depends_on = [
     aws_lb_listener.http
   ]
+
+  # CodeDeploy manages task_definition, load_balancer, and desired_count
+  # after the first deployment — ignore Terraform drift on these attributes.
+  lifecycle {
+    ignore_changes = [
+      task_definition,
+      load_balancer,
+      desired_count
+    ]
+  }
 }

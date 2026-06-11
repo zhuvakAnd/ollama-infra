@@ -1,0 +1,13 @@
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        # <TASK_DEFINITION> is replaced by CodeDeploy with the newly registered
+        # task definition ARN that CodePipeline generates from taskdef.json.
+        TaskDefinition: "<TASK_DEFINITION>"
+        LoadBalancerInfo:
+          # Must match the container that receives ALB traffic.
+          ContainerName: "open-webui"
+          ContainerPort: 8080
+        PlatformVersion: "LATEST"

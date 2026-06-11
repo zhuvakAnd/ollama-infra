@@ -50,7 +50,7 @@ resource "aws_codebuild_project" "terraform_validate" {
 
     environment_variable {
       name  = "TF_STATE_BUCKET"
-      value = "terraform-state-058264468006-eu-north-1-an"
+      value = "tfstate-542776677488-eu-north-1-an"
     }
 
     environment_variable {
@@ -114,7 +114,7 @@ resource "aws_codebuild_project" "terraform_apply" {
 
     environment_variable {
       name  = "TF_STATE_BUCKET"
-      value = "terraform-state-058264468006-eu-north-1-an"
+      value = "tfstate-542776677488-eu-north-1-an"
     }
 
     environment_variable {
