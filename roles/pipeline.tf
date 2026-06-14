@@ -86,7 +86,7 @@ resource "aws_codepipeline" "terraform_pipeline" {
     type     = "S3"
   }
 
-  # Event-driven: trigger on any push to the infrastructure branch
+  # Trigger only when files under main/ change
   trigger {
     provider_type = "CodeStarSourceConnection"
 
@@ -96,6 +96,10 @@ resource "aws_codepipeline" "terraform_pipeline" {
       push {
         branches {
           includes = ["main"]
+        }
+
+        file_paths {
+          includes = ["main/**"]
         }
       }
     }
