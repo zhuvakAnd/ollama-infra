@@ -99,7 +99,7 @@ resource "aws_codepipeline" "terraform_pipeline" {
         }
 
         file_paths {
-          includes = ["main/**"]
+          includes = ["main/*"]
         }
       }
     }
