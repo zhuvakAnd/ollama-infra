@@ -35,7 +35,7 @@ phases:
           --region $AWS_DEFAULT_REGION \
           --query 'services[0].taskDefinition' \
           --output text)
-      - echo "Task definition: $TASK_DEF_ARN"
+      - echo "Task definition $TASK_DEF_ARN"
       - echo "=== Generating taskdef.json ==="
       - |
         aws ecs describe-task-definition \
