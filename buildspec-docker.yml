@@ -6,7 +6,7 @@ phases:
       - echo "=== Login to ECR ==="
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
       - export IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)
-      - echo "Image tag: $IMAGE_TAG"
+      - echo "Image tag $IMAGE_TAG"
       - echo "=== Pull latest image for layer cache ==="
       - docker pull $ECR_REPO_URI:latest || true
 
@@ -27,7 +27,7 @@ phases:
       - docker push $ECR_REPO_URI:latest
       - echo "=== Generating imageDetail.json ==="
       - printf '{"ImageURI":"%s:%s"}' "$ECR_REPO_URI" "$IMAGE_TAG" > imageDetail.json
-      - echo "=== Generating taskdef.json from current task definition ==="
+      - echo "=== Fetching current task definition ARN ==="
       - |
         TASK_DEF_ARN=$(aws ecs describe-services \
           --cluster $ECS_CLUSTER \
@@ -35,34 +35,25 @@ phases:
           --region $AWS_DEFAULT_REGION \
           --query 'services[0].taskDefinition' \
           --output text)
-      - echo "Current task definition: $TASK_DEF_ARN"
+      - echo "Task definition: $TASK_DEF_ARN"
+      - echo "=== Generating taskdef.json ==="
       - |
         aws ecs describe-task-definition \
           --task-definition "$TASK_DEF_ARN" \
           --region "$AWS_DEFAULT_REGION" \
           --query 'taskDefinition' \
-        | python3 -c "
-import json, sys, os
-td = json.load(sys.stdin)
-# Strip read-only fields that cannot be in a RegisterTaskDefinition request
-for field in ['taskDefinitionArn', 'revision', 'status', 'requiresAttributes',
-              'compatibilities', 'registeredAt', 'registeredBy']:
-    td.pop(field, None)
-# Replace the target container image with the CodePipeline placeholder
-container_name = os.environ['CONTAINER_NAME']
-for c in td.get('containerDefinitions', []):
-    if c['name'] == container_name:
-        c['image'] = '<IMAGE1_NAME>'
-print(json.dumps(td, indent=2))
-" > taskdef.json
-      - echo "=== Build artifacts ==="
+        | jq --arg name "$CONTAINER_NAME" \
+             --arg img "<IMAGE1_NAME>" \
+             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)
+              | .containerDefinitions |=
+                  map(if .name == $name then .image = $img else . end)' \
+        > taskdef.json
+      - echo "=== Artifacts ==="
       - cat imageDetail.json
       - echo "taskdef.json generated successfully"
 
 artifacts:
-  # Both files are consumed by the CodeDeployToECS pipeline action:
-  #   imageDetail.json  -> Image1ArtifactName  (image URI substitution)
-  #   taskdef.json      -> TaskDefinitionTemplateArtifact  (<IMAGE1_NAME> placeholder)
   files:
     - imageDetail.json
     - taskdef.json
