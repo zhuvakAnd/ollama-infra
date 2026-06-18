@@ -1,5 +1,5 @@
 FROM ollama/ollama:latest
-
+#Hello
 RUN bash -lc '\
     ollama serve & \
     pid=$!; \
