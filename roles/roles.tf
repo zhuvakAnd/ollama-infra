@@ -152,9 +152,12 @@ resource "aws_iam_role_policy" "codepipeline_sns" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["sns:Publish"]
-        Resource = aws_sns_topic.pipeline_approval.arn
+        Effect = "Allow"
+        Action = ["sns:Publish"]
+        Resource = [
+          aws_sns_topic.pipeline_approval.arn,
+          aws_sns_topic.app_pipeline_approval.arn,
+        ]
       }
     ]
   })

@@ -89,6 +89,25 @@ resource "aws_codebuild_project" "docker_build" {
   ]
 }
 
+# ─── SNS – Application Pipeline Manual Approval ──────────────────────────────
+
+resource "aws_sns_topic" "app_pipeline_approval" {
+  name = "application-pipeline-approval"
+
+  tags = {
+    Name        = "application-pipeline-approval"
+    Environment = "prod"
+  }
+}
+
+resource "aws_sns_topic_subscription" "app_pipeline_approval_email" {
+  count = var.approval_email != "" ? 1 : 0
+
+  topic_arn = aws_sns_topic.app_pipeline_approval.arn
+  protocol  = "email"
+  endpoint  = var.approval_email
+}
+
 # ─── CodePipeline: Application Pipeline ──────────────────────────────────────
 
 resource "aws_codepipeline" "app_pipeline" {
@@ -162,7 +181,26 @@ resource "aws_codepipeline" "app_pipeline" {
     }
   }
 
-  # ── Stage 3: ECS Blue/Green Deploy via CodeDeploy ────────────────────────────
+  # ── Stage 3: Manual Approval ─────────────────────────────────────────────────
+  stage {
+    name = "Approval"
+
+    action {
+      name     = "Manual-Approval"
+      category = "Approval"
+      owner    = "AWS"
+      provider = "Manual"
+      version  = "1"
+
+      configuration = {
+        NotificationArn    = aws_sns_topic.app_pipeline_approval.arn
+        CustomData         = "Review the Docker build and ECR push output in CodeBuild logs before approving. Rejecting will stop the ECS deployment."
+        ExternalEntityLink = "https://console.aws.amazon.com/codesuite/codebuild/projects/docker-image-build/history"
+      }
+    }
+  }
+
+  # ── Stage 4: ECS Blue/Green Deploy via CodeDeploy ────────────────────────────
   # ApplicationName and DeploymentGroupName are hardcoded so this pipeline
   # requires no data sources pointing at main/ stack resources.
   # The deployment group is created in main/codedeploy.tf and must exist
@@ -195,6 +233,7 @@ resource "aws_codepipeline" "app_pipeline" {
     aws_iam_role_policy_attachment.codepipeline_managed,
     aws_iam_role_policy.codepipeline_s3,
     aws_iam_role_policy.codepipeline_codebuild_extended,
+    aws_iam_role_policy.codepipeline_sns,
     aws_iam_role_policy.codestar_connection,
     aws_s3_bucket_versioning.pipeline_artifacts
   ]

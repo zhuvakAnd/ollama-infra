@@ -5,26 +5,37 @@ phases:
     commands:
       - echo "=== Login to ECR ==="
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
-      - export IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)
+      - export IMAGE_TAG="$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)-${CODEBUILD_BUILD_NUMBER}"
       - echo "Image tag $IMAGE_TAG"
-      - echo "=== Pull latest image for layer cache ==="
-      - docker pull $ECR_REPO_URI:latest || true
+      - echo "=== Pull most recent image for layer cache ==="
+      - |
+        CACHE_TAG=$(aws ecr describe-images \
+          --repository-name ollama-app \
+          --region "$AWS_DEFAULT_REGION" \
+          --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags | [0]' \
+          --output text 2>/dev/null || true)
+        if [ -n "$CACHE_TAG" ] && [ "$CACHE_TAG" != "None" ]; then
+          echo "Using cache tag $CACHE_TAG"
+          docker pull "$ECR_REPO_URI:$CACHE_TAG" || true
+          export CACHE_FROM="--cache-from $ECR_REPO_URI:$CACHE_TAG"
+        else
+          echo "No existing image found for cache"
+          export CACHE_FROM=""
+        fi
 
   build:
     commands:
       - echo "=== Building Docker image ==="
       - |
         docker build \
-          --cache-from $ECR_REPO_URI:latest \
+          $CACHE_FROM \
           -t $ECR_REPO_URI:$IMAGE_TAG \
-          -t $ECR_REPO_URI:latest \
           -f docker/Tinyllama.Dockerfile .
 
   post_build:
     commands:
-      - echo "=== Pushing images to ECR ==="
+      - echo "=== Pushing image to ECR ==="
       - docker push $ECR_REPO_URI:$IMAGE_TAG
-      - docker push $ECR_REPO_URI:latest
       - echo "=== Generating imageDetail.json ==="
       - printf '{"ImageURI":"%s:%s"}' "$ECR_REPO_URI" "$IMAGE_TAG" > imageDetail.json
       - echo "=== Fetching current task definition ARN ==="
