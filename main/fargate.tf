@@ -34,6 +34,11 @@ resource "aws_ecs_cluster" "ollama_cluster" {
   }
 }
 
+data "aws_ecr_image" "ollama_app" {
+  repository_name = "ollama-app"
+  most_recent     = true
+}
+
 resource "aws_ecs_task_definition" "ollama_webui" {
   family                   = "ollama-webui-task"
   requires_compatibilities = ["FARGATE"]
@@ -50,7 +55,7 @@ resource "aws_ecs_task_definition" "ollama_webui" {
     # --- Ollama container ---
     {
       name  = "ollama"
-      image = "542776677488.dkr.ecr.us-east-1.amazonaws.com/ollama-app:v2"
+      image = data.aws_ecr_image.ollama_app.image_uri
 
       essential = true
 
@@ -137,6 +142,11 @@ resource "aws_ecs_task_definition" "ollama_webui" {
     }
 
   ])
+
+  depends_on = [
+    aws_secretsmanager_secret_version.open_webui_database_url,
+    aws_secretsmanager_secret_version.webui,
+  ]
 }
 
 
@@ -320,7 +330,9 @@ resource "aws_ecs_service" "ollama_service" {
   }
 
   depends_on = [
-    aws_lb_listener.http
+    aws_lb_listener.http,
+    aws_secretsmanager_secret_version.open_webui_database_url,
+    aws_secretsmanager_secret_version.webui,
   ]
 
   # CodeDeploy manages task_definition, load_balancer, and desired_count

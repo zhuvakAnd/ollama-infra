@@ -1,5 +1,5 @@
 FROM ollama/ollama:latest
-#test trigger3
+#test trigger3s
 RUN bash -lc '\
     ollama serve & \
     pid=$!; \

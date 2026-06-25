@@ -87,3 +87,58 @@ resource "aws_security_group" "alb_sg" {
     Name = "SG-ALB"
   }
 }
+
+resource "aws_security_group" "lambda_monitor_sg" {
+  name        = "SG-Lambda-Monitoring"
+  description = "Health monitoring Lambda SG"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "SG-Lambda-Monitoring"
+  }
+}
+
+resource "aws_security_group_rule" "lambda_monitor_egress_https" {
+  type              = "egress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  security_group_id = aws_security_group.lambda_monitor_sg.id
+  cidr_blocks       = ["0.0.0.0/0"]
+}
+
+resource "aws_security_group_rule" "lambda_monitor_egress_db" {
+  type              = "egress"
+  from_port         = 5432
+  to_port           = 5432
+  protocol          = "tcp"
+  security_group_id = aws_security_group.lambda_monitor_sg.id
+  source_security_group_id = aws_security_group.db_sg.id
+}
+
+resource "aws_security_group_rule" "lambda_monitor_egress_alb" {
+  type              = "egress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  security_group_id = aws_security_group.lambda_monitor_sg.id
+  source_security_group_id = aws_security_group.alb_sg.id
+}
+
+resource "aws_security_group_rule" "db_from_lambda_monitor" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.db_sg.id
+  source_security_group_id = aws_security_group.lambda_monitor_sg.id
+}
+
+resource "aws_security_group_rule" "alb_from_lambda_monitor" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.alb_sg.id
+  source_security_group_id = aws_security_group.lambda_monitor_sg.id
+}

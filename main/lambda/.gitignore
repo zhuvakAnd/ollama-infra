@@ -1,0 +1,4 @@
+# Lambda build artifacts
+lambda/layer/build/
+lambda/layer/psycopg2-layer.zip
+lambda/health_monitor/lambda.zip
